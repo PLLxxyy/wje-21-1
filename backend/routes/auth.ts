@@ -2,9 +2,9 @@ import { Router } from 'express'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { db } from '../database'
+import { authMiddleware, JWT_SECRET } from '../middleware/auth'
 
 const router = Router()
-const JWT_SECRET = process.env.JWT_SECRET || 'pdd-167-secret-key'
 
 function generateToken(user: any) {
   return jwt.sign({ userId: user.id, username: user.username }, JWT_SECRET, { expiresIn: '7d' })
@@ -48,18 +48,6 @@ router.post('/login', (req, res) => {
     user: { id: user.id, username: user.username, name: user.name, expiryReminder: user.expiry_reminder === 1 }
   })
 })
-
-function authMiddleware(req: any, res: any, next: any) {
-  const token = req.headers.authorization?.replace('Bearer ', '')
-  if (!token) return res.status(401).json({ error: '未登录' })
-  try {
-    const decoded: any = jwt.verify(token, JWT_SECRET)
-    req.userId = decoded.userId
-    next()
-  } catch {
-    return res.status(401).json({ error: '登录已过期' })
-  }
-}
 
 router.get('/settings', authMiddleware, (req: any, res) => {
   const user: any = db.prepare('SELECT expiry_reminder FROM users WHERE id = ?').get(req.userId)
