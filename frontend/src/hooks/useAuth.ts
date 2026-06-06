@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '@/utils/api'
+import { User } from '@/types'
 
 export function useAuth() {
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
 
@@ -38,5 +39,13 @@ export function useAuth() {
     navigate('/login')
   }
 
-  return { user, loading, login, register, logout }
+  const updateSettings = async (settings: { expiryReminder: boolean }) => {
+    const res = await api.put('/auth/settings', settings)
+    const updatedUser = { ...user!, expiryReminder: res.data.expiryReminder }
+    localStorage.setItem('user', JSON.stringify(updatedUser))
+    setUser(updatedUser)
+    return res.data
+  }
+
+  return { user, loading, login, register, logout, updateSettings }
 }

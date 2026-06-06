@@ -19,6 +19,36 @@ function authMiddleware(req: any, res: any, next: any) {
 
 router.use(authMiddleware)
 
+router.get('/expiring-soon', (req: any, res) => {
+  const days = Number(req.query.days) || 30
+  const today = new Date()
+  const futureDate = new Date(today.getTime() + days * 24 * 60 * 60 * 1000)
+  const todayStr = today.toISOString().split('T')[0]
+  const futureStr = futureDate.toISOString().split('T')[0]
+
+  const items = db.prepare(`
+    SELECT i.*, s.name as space_name
+    FROM items i
+    JOIN spaces s ON i.space_id = s.id
+    WHERE s.user_id = ? AND i.expiry_date IS NOT NULL AND i.expiry_date >= ? AND i.expiry_date <= ?
+    ORDER BY i.expiry_date ASC
+  `).all(req.userId, todayStr, futureStr)
+
+  res.json(items.map((i: any) => ({
+    id: i.id,
+    spaceId: i.space_id,
+    name: i.name,
+    quantity: i.quantity,
+    description: i.description,
+    photo: i.photo,
+    tags: i.tags,
+    layer: i.layer,
+    expiryDate: i.expiry_date,
+    spaceName: i.space_name,
+    createdAt: i.created_at
+  })))
+})
+
 router.get('/search', (req: any, res) => {
   const q = req.query.q as string
   if (!q) return res.json([])

@@ -1,17 +1,107 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useSpaces } from '@/hooks/useSpaces'
+import { useAuth } from '@/hooks/useAuth'
 import SpaceForm from '@/components/SpaceForm'
-import { Plus, Trash2, Edit, Box, MapPin } from 'lucide-react'
+import { Plus, Trash2, Edit, Box, MapPin, AlertTriangle, Calendar } from 'lucide-react'
+import api from '@/utils/api'
+import { ItemWithSpace } from '@/types'
+import { formatDate, getDaysUntilExpiry } from '@/utils/format'
 
 export default function Home() {
   const { spaces, loading, createSpace, deleteSpace } = useSpaces()
+  const { user } = useAuth()
   const [showForm, setShowForm] = useState(false)
+  const [expiringItems, setExpiringItems] = useState<ItemWithSpace[]>([])
+  const [expiryLoading, setExpiryLoading] = useState(true)
+
+  useEffect(() => {
+    const loadExpiringItems = async () => {
+      if (!user?.expiryReminder) {
+        setExpiryLoading(false)
+        return
+      }
+      try {
+        const res = await api.get('/items/expiring-soon', { params: { days: 30 } })
+        setExpiringItems(res.data)
+      } catch (e) {
+        // ignore
+      } finally {
+        setExpiryLoading(false)
+      }
+    }
+    loadExpiringItems()
+  }, [user?.expiryReminder])
+
+  const getExpiryBadgeClass = (days: number) => {
+    if (days <= 0) return 'bg-red-100 text-red-700'
+    if (days <= 7) return 'bg-orange-100 text-orange-700'
+    if (days <= 14) return 'bg-yellow-100 text-yellow-700'
+    return 'bg-blue-100 text-blue-700'
+  }
+
+  const getExpiryText = (days: number) => {
+    if (days < 0) return `已过期 ${Math.abs(days)} 天`
+    if (days === 0) return '今天过期'
+    if (days === 1) return '明天过期'
+    return `还有 ${days} 天`
+  }
 
   if (loading) return <div className="text-center py-20 text-gray-500">加载中...</div>
 
   return (
     <div className="space-y-6">
+      {user?.expiryReminder && !expiryLoading && expiringItems.length > 0 && (
+        <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-lg p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <AlertTriangle className="w-5 h-5 text-orange-500" />
+            <h2 className="text-lg font-semibold text-gray-800">近期过期物品</h2>
+            <span className="ml-auto text-xs text-orange-600 bg-orange-100 px-2 py-1 rounded-full">
+              {expiringItems.length} 件
+            </span>
+          </div>
+          <div className="space-y-3 max-h-80 overflow-y-auto">
+            {expiringItems.map(item => {
+              const days = item.expiryDate ? getDaysUntilExpiry(item.expiryDate) : 0
+              return (
+                <Link
+                  key={item.id}
+                  to={`/items/${item.id}`}
+                  className="flex items-center gap-4 bg-white rounded-lg p-4 hover:shadow-sm transition-shadow border border-orange-100"
+                >
+                  {item.photo ? (
+                    <img src={item.photo} alt={item.name} className="w-14 h-14 rounded-lg object-cover" />
+                  ) : (
+                    <div className="w-14 h-14 rounded-lg bg-gray-100 flex items-center justify-center">
+                      <Box className="w-6 h-6 text-gray-400" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-medium text-gray-800 truncate">{item.name}</h3>
+                    <div className="flex items-center gap-2 mt-1 text-sm text-gray-500">
+                      <MapPin className="w-3 h-3" />
+                      <span className="truncate">{item.spaceName}</span>
+                      {item.quantity > 1 && (
+                        <span className="text-gray-400">×{item.quantity}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${getExpiryBadgeClass(days)}`}>
+                      {getExpiryText(days)}
+                    </span>
+                    <div className="flex items-center gap-1 mt-1 text-xs text-gray-400">
+                      <Calendar className="w-3 h-3" />
+                      {item.expiryDate && formatDate(item.expiryDate)}
+                    </div>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800">我的空间</h1>
         <button

@@ -1,14 +1,28 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { Settings as SettingsIcon, User, Lock, Bell } from 'lucide-react'
+import api from '@/utils/api'
 
 export default function Settings() {
-  const { user } = useAuth()
+  const { user, updateSettings } = useAuth()
   const [name, setName] = useState(user?.name || '')
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [message, setMessage] = useState('')
-  const [expiryReminder, setExpiryReminder] = useState(true)
+  const [expiryReminder, setExpiryReminder] = useState(user?.expiryReminder ?? true)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const res = await api.get('/auth/settings')
+        setExpiryReminder(res.data.expiryReminder)
+      } catch (e) {
+        // ignore
+      }
+    }
+    loadSettings()
+  }, [])
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -20,6 +34,20 @@ export default function Settings() {
     setMessage('密码已修改')
     setCurrentPassword('')
     setNewPassword('')
+  }
+
+  const handleExpiryReminderChange = async (checked: boolean) => {
+    setExpiryReminder(checked)
+    setSaving(true)
+    try {
+      await updateSettings({ expiryReminder: checked })
+      setMessage(checked ? '过期提醒已开启' : '过期提醒已关闭')
+      setTimeout(() => setMessage(''), 2000)
+    } catch (e) {
+      setExpiryReminder(!checked)
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -42,7 +70,8 @@ export default function Settings() {
           <input
             type="checkbox"
             checked={expiryReminder}
-            onChange={e => setExpiryReminder(e.target.checked)}
+            onChange={e => handleExpiryReminderChange(e.target.checked)}
+            disabled={saving}
             className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500"
           />
           <label className="text-sm text-gray-700">过期物品提醒</label>

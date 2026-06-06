@@ -7,9 +7,16 @@ db.exec(`
     username TEXT UNIQUE NOT NULL,
     password TEXT NOT NULL,
     name TEXT NOT NULL,
+    expiry_reminder INTEGER DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )
 `)
+
+const pragmaResult = db.prepare("PRAGMA table_info(users)").all() as any[]
+const hasExpiryReminder = pragmaResult.some(col => col.name === 'expiry_reminder')
+if (!hasExpiryReminder) {
+  db.exec('ALTER TABLE users ADD COLUMN expiry_reminder INTEGER DEFAULT 1')
+}
 
 // Spaces table
 db.exec(`

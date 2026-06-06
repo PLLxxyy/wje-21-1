@@ -26,7 +26,7 @@ router.post('/register', (req, res) => {
     'INSERT INTO users (username, password, name) VALUES (?, ?, ?)'
   ).run(username, hashed, name)
 
-  const user = { id: result.lastInsertRowid, username, name }
+  const user = { id: result.lastInsertRowid, username, name, expiryReminder: 1 }
   const token = generateToken(user)
   res.json({ token, user })
 })
@@ -45,8 +45,36 @@ router.post('/login', (req, res) => {
   const token = generateToken(user)
   res.json({
     token,
-    user: { id: user.id, username: user.username, name: user.name }
+    user: { id: user.id, username: user.username, name: user.name, expiryReminder: user.expiry_reminder === 1 }
   })
+})
+
+function authMiddleware(req: any, res: any, next: any) {
+  const token = req.headers.authorization?.replace('Bearer ', '')
+  if (!token) return res.status(401).json({ error: '未登录' })
+  try {
+    const decoded: any = jwt.verify(token, JWT_SECRET)
+    req.userId = decoded.userId
+    next()
+  } catch {
+    return res.status(401).json({ error: '登录已过期' })
+  }
+}
+
+router.get('/settings', authMiddleware, (req: any, res) => {
+  const user: any = db.prepare('SELECT expiry_reminder FROM users WHERE id = ?').get(req.userId)
+  if (!user) return res.status(404).json({ error: '用户不存在' })
+  res.json({ expiryReminder: user.expiry_reminder === 1 })
+})
+
+router.put('/settings', authMiddleware, (req: any, res) => {
+  const { expiryReminder } = req.body
+  db.prepare('UPDATE users SET expiry_reminder = ? WHERE id = ?').run(
+    expiryReminder ? 1 : 0,
+    req.userId
+  )
+  const user: any = db.prepare('SELECT * FROM users WHERE id = ?').get(req.userId)
+  res.json({ expiryReminder: user.expiry_reminder === 1 })
 })
 
 export default router

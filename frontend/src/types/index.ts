@@ -2,6 +2,11 @@ export interface User {
   id: number
   username: string
   name: string
+  expiryReminder: boolean
+}
+
+export interface ItemWithSpace extends Item {
+  spaceName: string
 }
 
 export interface Space {
